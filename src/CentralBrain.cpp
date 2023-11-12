@@ -147,6 +147,7 @@ void ServeWeatherData(WiFiClient& client)
   unsigned char* ptr = (unsigned char*)(outHeader + 1);
   if ((header.m_DataIncluded & WEATHER_TEMP_BIT) != 0 && (m_WeatherHeader.m_DataIncluded & WEATHER_TEMP_BIT) != 0)
   {
+    DebugPrint("Adding temp data\n");
     TemperatureData* data = (TemperatureData*)ptr;
     *data = m_TemperatureData;
     ptr += sizeof(TemperatureData);
@@ -154,6 +155,7 @@ void ServeWeatherData(WiFiClient& client)
   }
   if ((header.m_DataIncluded & WEATHER_CO2_BIT) != 0 && (m_WeatherHeader.m_DataIncluded & WEATHER_CO2_BIT) != 0)
   {
+    DebugPrint("Adding co2 data\n");
     CO2Data* data = (CO2Data*)ptr;
     *data = m_CO2Data;
     ptr += sizeof(CO2Data);
@@ -161,6 +163,7 @@ void ServeWeatherData(WiFiClient& client)
   }
   if ((header.m_DataIncluded & WEATHER_PM_BIT) != 0 && (m_WeatherHeader.m_DataIncluded & WEATHER_PM_BIT) != 0)
   {
+    DebugPrint("Adding PM data\n");
     PMData* data = (PMData*)ptr;
     *data = m_PMData;
     ptr += sizeof(PMData);
@@ -168,6 +171,7 @@ void ServeWeatherData(WiFiClient& client)
   }
   if ((header.m_DataIncluded & WEATHER_BATT_BIT) != 0 && (m_WeatherHeader.m_DataIncluded & WEATHER_BATT_BIT) != 0)
   {
+    DebugPrint("Adding batt data\n");
     BatteryData* data = (BatteryData*)ptr;
     *data = m_BatteryData;
     ptr += sizeof(BatteryData);
@@ -175,6 +179,7 @@ void ServeWeatherData(WiFiClient& client)
   }
 
   size_t outLength = (size_t)(ptr - out);
+  DebugPrintf("Responding with %d bytes\n", outLength);
   client.write(out, outLength);
 }
 
@@ -189,6 +194,7 @@ void DoServer(WiFiClient& client)
     DebugPrint("No bytes?!?\n");
     return;
   }
+  DebugPrintf("Request type = %hhu\n", dataType);
 
   switch (dataType)
   {
@@ -210,6 +216,7 @@ void loop()
   if (m_ServerSocket.hasClient())
   {
     WiFiClient client = m_ServerSocket.accept();
+    DebugPrint("Received client connection!\n");
     client.setTimeout(2);
     DoServer(client);
     client.stop();
