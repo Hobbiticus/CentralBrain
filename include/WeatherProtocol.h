@@ -20,7 +20,7 @@ struct WeatherHeader
 struct TemperatureData
 {
   short m_Temperature;       // in hundredths of degrees
-  unsigned char m_Humidity;  // in tenths of percent
+  unsigned short m_Humidity;  // in tenths of percent
   unsigned int m_Pressure;   // in hundredths of pascals
 };
 

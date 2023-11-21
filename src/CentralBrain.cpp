@@ -1,9 +1,14 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <ezTime.h>
 #include "creds.h"
 #include "debug.h"
+#include "MyTime.h"
 #include "../include/IngestProtocol.h"
 #include "../include/WeatherProtocol.h"
+#include "FS.h"
+#include "SD.h"
+#include "SPI.h"
 
 IPAddress local_IP(192, 168, 1, 222);
 IPAddress gateway(192, 168, 1, 1);
@@ -21,10 +26,12 @@ TemperatureData m_TemperatureData;
 CO2Data m_CO2Data;
 PMData m_PMData;
 BatteryData m_BatteryData;
+Timezone myTZ;
 
 void setup()
 {
   Serial.begin(115200);
+  Serial.printf("sd begin = %hhu\n", SD.begin(5));
 
   m_WeatherHeader.m_DataIncluded = 0; //we have no data!!
 
@@ -37,6 +44,9 @@ void setup()
     Serial.println("Waiting for wifi to connect...");
   }
   Serial.println("Connected to WiFi!");
+  waitForSync();
+  myTZ.setLocation("America/New_York");
+  Serial.println("now = " + myTZ.dateTime());
 
   m_IngestSocket.begin(IngestPort);
   m_ServerSocket.begin(ServerPort);
@@ -63,6 +73,12 @@ void IngestWeatherData(WiFiClient& client)
     }
     m_TemperatureData = data;
     DebugPrintf("Got temperature stuff: %.1f F, %.1f%%, %.2f\n", m_TemperatureData.m_Temperature / 100.0 * 9 / 5 + 32, m_TemperatureData.m_Humidity / 10.0, m_TemperatureData.m_Pressure / 100.0);
+    File file = SD.open("/log.txt", FILE_APPEND);
+    if (file)
+    {
+      file.printf("%s: Weather: %.1f F, %.1f%%, %.2f\n", myTZ.dateTime().c_str(), m_TemperatureData.m_Temperature / 100.0 * 9 / 5 + 32, m_TemperatureData.m_Humidity / 10.0, m_TemperatureData.m_Pressure / 100.0);
+      file.close();
+    }
     m_WeatherHeader.m_DataIncluded |= WEATHER_TEMP_BIT;
   }
 
@@ -77,6 +93,12 @@ void IngestWeatherData(WiFiClient& client)
     }
     m_CO2Data = data;
     DebugPrintf("Got CO2 stuff: %hu ppm\n", m_CO2Data.m_PPM);
+    File file = SD.open("/log.txt", FILE_APPEND);
+    if (file)
+    {
+      file.printf("%s: CO2: %hu ppm\n", myTZ.dateTime().c_str(), m_CO2Data.m_PPM);
+      file.close();
+    }
     m_WeatherHeader.m_DataIncluded |= WEATHER_CO2_BIT;
   }
 
@@ -91,6 +113,12 @@ void IngestWeatherData(WiFiClient& client)
     }
     m_PMData = data;
     DebugPrintf("Got PM stuff: pm10: %hhu, pm2.5: %hhu, pm0.1: %hhu\n", m_PMData.m_10, m_PMData.m_2_5, m_PMData.m_0_1);
+    File file = SD.open("/log.txt", FILE_APPEND);
+    if (file)
+    {
+      file.printf("%s: PM: pm10: %hhu, pm2.5: %hhu, pm0.1: %hhu\n", myTZ.dateTime().c_str(), m_PMData.m_10, m_PMData.m_2_5, m_PMData.m_0_1);
+      file.close();
+    }
     m_WeatherHeader.m_DataIncluded |= WEATHER_PM_BIT;
   }
 
@@ -105,6 +133,13 @@ void IngestWeatherData(WiFiClient& client)
     }
     m_BatteryData = data;
     DebugPrintf("Got battery stuff: %.2f Volts\n", m_BatteryData.m_Voltage / 100.0);
+    File file = SD.open("/log.txt", FILE_APPEND);
+    if (file)
+    {
+      file.printf("%s: Battery: %.2f Volts\n", myTZ.dateTime().c_str(), m_BatteryData.m_Voltage / 100.0);
+      file.close();
+    }
+
     m_WeatherHeader.m_DataIncluded |= WEATHER_BATT_BIT;
   }
 }
@@ -206,6 +241,7 @@ void DoServer(WiFiClient& client)
 
 void loop()
 {
+  events(); //ezTime events()
   if (m_IngestSocket.hasClient())
   {
     WiFiClient client = m_IngestSocket.accept();
