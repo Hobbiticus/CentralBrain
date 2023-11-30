@@ -9,12 +9,20 @@
 #include "FS.h"
 #include "SD.h"
 #include "SPI.h"
+#include <ArduinoHA.h>
 
 IPAddress local_IP(192, 168, 1, 222);
 IPAddress gateway(192, 168, 1, 1);
 IPAddress subnet(255, 255, 255, 0);
 IPAddress primaryDNS(8, 8, 8, 8);
 IPAddress secondaryDNS(8, 8, 4, 4);
+#define BROKER_ADDR IPAddress(192,168,1,98)
+
+
+WiFiClient client;
+HADevice device;
+HAMqtt mqtt(client, device);
+HASensorNumber TemperatureSensor("temperature", HABaseDeviceType::PrecisionP1);
 
 const unsigned short IngestPort = 7777;
 const unsigned short ServerPort = 7788;
@@ -32,6 +40,9 @@ void setup()
 {
   Serial.begin(115200);
   Serial.printf("sd begin = %hhu\n", SD.begin(5));
+  TemperatureSensor.setUnitOfMeasurement("°F");
+  TemperatureSensor.setDeviceClass("temperature");
+
 
   m_WeatherHeader.m_DataIncluded = 0; //we have no data!!
 
@@ -44,6 +55,16 @@ void setup()
     Serial.println("Waiting for wifi to connect...");
   }
   Serial.println("Connected to WiFi!");
+  
+  byte mac[6];
+  WiFi.macAddress(mac);
+  device.setUniqueId(mac, sizeof(mac));
+  device.setName("CentralBrain");
+  device.setSoftwareVersion("1.0.0");
+
+  mqtt.begin(BROKER_ADDR, "user", "pw");
+
+
   waitForSync();
   myTZ.setLocation("America/New_York");
   Serial.println("now = " + myTZ.dateTime());
@@ -72,14 +93,16 @@ void IngestWeatherData(WiFiClient& client)
       return;
     }
     m_TemperatureData = data;
-    DebugPrintf("Got temperature stuff: %.1f F, %.1f%%, %.2f\n", m_TemperatureData.m_Temperature / 100.0 * 9 / 5 + 32, m_TemperatureData.m_Humidity / 10.0, m_TemperatureData.m_Pressure / 100.0);
+    double tempF = m_TemperatureData.m_Temperature / 100.0 * 9 / 5 + 32;
+    DebugPrintf("Got temperature stuff: %.1f F, %.1f%%, %.2f\n", tempF, m_TemperatureData.m_Humidity / 10.0, m_TemperatureData.m_Pressure / 100.0);
     File file = SD.open("/log.txt", FILE_APPEND);
     if (file)
     {
-      file.printf("%s: Weather: %.1f F, %.1f%%, %.2f\n", myTZ.dateTime().c_str(), m_TemperatureData.m_Temperature / 100.0 * 9 / 5 + 32, m_TemperatureData.m_Humidity / 10.0, m_TemperatureData.m_Pressure / 100.0);
+      file.printf("%s: Weather: %.1f F, %.1f%%, %.2f\n", myTZ.dateTime().c_str(), tempF, m_TemperatureData.m_Humidity / 10.0, m_TemperatureData.m_Pressure / 100.0);
       file.close();
     }
     m_WeatherHeader.m_DataIncluded |= WEATHER_TEMP_BIT;
+    TemperatureSensor.setValue((float)tempF);
   }
 
   if ((header.m_DataIncluded & WEATHER_CO2_BIT) != 0)
@@ -241,6 +264,7 @@ void DoServer(WiFiClient& client)
 
 void loop()
 {
+  mqtt.loop();
   events(); //ezTime events()
   if (m_IngestSocket.hasClient())
   {
