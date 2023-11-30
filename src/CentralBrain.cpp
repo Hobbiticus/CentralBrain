@@ -23,6 +23,13 @@ WiFiClient client;
 HADevice device;
 HAMqtt mqtt(client, device);
 HASensorNumber TemperatureSensor("temperature", HABaseDeviceType::PrecisionP1);
+HASensorNumber HumiditySensor("humidity", HABaseDeviceType::PrecisionP1);
+HASensorNumber PressureSensor("pressure", HABaseDeviceType::PrecisionP1);
+HASensorNumber CO2Sensor("co2", HABaseDeviceType::PrecisionP0);
+HASensorNumber PM10Sensor("pm10", HABaseDeviceType::PrecisionP0);
+HASensorNumber PM2_5Sensor("pm25", HABaseDeviceType::PrecisionP0);
+HASensorNumber PM0_1Sensor("pm01", HABaseDeviceType::PrecisionP0);
+HASensorNumber BatterySensor("battery", HABaseDeviceType::PrecisionP2);
 
 const unsigned short IngestPort = 7777;
 const unsigned short ServerPort = 7788;
@@ -42,6 +49,20 @@ void setup()
   Serial.printf("sd begin = %hhu\n", SD.begin(5));
   TemperatureSensor.setUnitOfMeasurement("°F");
   TemperatureSensor.setDeviceClass("temperature");
+  HumiditySensor.setUnitOfMeasurement("%");
+  HumiditySensor.setDeviceClass("humidity");
+  PressureSensor.setUnitOfMeasurement("kPa");
+  PressureSensor.setDeviceClass("pressure");
+  CO2Sensor.setUnitOfMeasurement("ppm");
+  CO2Sensor.setDeviceClass("carbon_dioxide");
+  PM10Sensor.setUnitOfMeasurement("ug/m3");
+  PM10Sensor.setDeviceClass("pm10");
+  PM2_5Sensor.setUnitOfMeasurement("ug/m3");
+  PM2_5Sensor.setDeviceClass("pm25");
+  PM0_1Sensor.setUnitOfMeasurement("ug/m3");
+  PM0_1Sensor.setDeviceClass("pm1");
+  BatterySensor.setUnitOfMeasurement("V");
+  BatterySensor.setDeviceClass("voltage");
 
 
   m_WeatherHeader.m_DataIncluded = 0; //we have no data!!
@@ -62,7 +83,8 @@ void setup()
   device.setName("CentralBrain");
   device.setSoftwareVersion("1.0.0");
 
-  mqtt.begin(BROKER_ADDR, "user", "pw");
+  bool result = mqtt.begin(BROKER_ADDR, MQTT_USER, MQTT_PASSWORD);
+  Serial.printf("mqtt begin said: %d\n", result ? 1 : 0);
 
 
   waitForSync();
@@ -103,6 +125,8 @@ void IngestWeatherData(WiFiClient& client)
     }
     m_WeatherHeader.m_DataIncluded |= WEATHER_TEMP_BIT;
     TemperatureSensor.setValue((float)tempF);
+    HumiditySensor.setValue(m_TemperatureData.m_Humidity / 10.0f);
+    PressureSensor.setValue(m_TemperatureData.m_Pressure / 100000.0f);
   }
 
   if ((header.m_DataIncluded & WEATHER_CO2_BIT) != 0)
@@ -123,6 +147,7 @@ void IngestWeatherData(WiFiClient& client)
       file.close();
     }
     m_WeatherHeader.m_DataIncluded |= WEATHER_CO2_BIT;
+    CO2Sensor.setValue(m_CO2Data.m_PPM);
   }
 
   if ((header.m_DataIncluded & WEATHER_PM_BIT) != 0)
@@ -143,6 +168,9 @@ void IngestWeatherData(WiFiClient& client)
       file.close();
     }
     m_WeatherHeader.m_DataIncluded |= WEATHER_PM_BIT;
+    PM10Sensor.setValue(m_PMData.m_10);
+    PM2_5Sensor.setValue(m_PMData.m_2_5);
+    PM0_1Sensor.setValue(m_PMData.m_0_1);
   }
 
   if ((header.m_DataIncluded & WEATHER_BATT_BIT) != 0)
@@ -155,15 +183,17 @@ void IngestWeatherData(WiFiClient& client)
       return;
     }
     m_BatteryData = data;
-    DebugPrintf("Got battery stuff: %.2f Volts\n", m_BatteryData.m_Voltage / 100.0);
+    float volts = m_BatteryData.m_Voltage / 100.0;
+    DebugPrintf("Got battery stuff: %.2f Volts\n", volts);
     File file = SD.open("/log.txt", FILE_APPEND);
     if (file)
     {
-      file.printf("%s: Battery: %.2f Volts\n", myTZ.dateTime().c_str(), m_BatteryData.m_Voltage / 100.0);
+      file.printf("%s: Battery: %.2f Volts\n", myTZ.dateTime().c_str(), volts);
       file.close();
     }
 
     m_WeatherHeader.m_DataIncluded |= WEATHER_BATT_BIT;
+    BatterySensor.setValue(volts);
   }
 }
 
