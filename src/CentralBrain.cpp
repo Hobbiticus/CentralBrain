@@ -10,14 +10,21 @@
 #include "SD.h"
 #include "SPI.h"
 #include <ArduinoHA.h>
+#include <MQTT.h>
+#include <ArduinoJson.h>
+#include "MQTTDevice.h"
+#include "MQTTSensor.h"
+
 
 IPAddress local_IP(192, 168, 1, 222);
 IPAddress gateway(192, 168, 1, 1);
 IPAddress subnet(255, 255, 255, 0);
-IPAddress primaryDNS(8, 8, 8, 8);
+IPAddress primaryDNS(192, 168, 1, 1);
 IPAddress secondaryDNS(8, 8, 4, 4);
 #define BROKER_ADDR IPAddress(192,168,1,98)
 
+WiFiClient wifi2;
+MQTTClient mqtt2(256);
 
 WiFiClient client;
 HADevice device;
@@ -27,9 +34,19 @@ HASensorNumber HumiditySensor("humidity", HABaseDeviceType::PrecisionP1);
 HASensorNumber PressureSensor("pressure", HABaseDeviceType::PrecisionP1);
 HASensorNumber CO2Sensor("co2", HABaseDeviceType::PrecisionP0);
 HASensorNumber PM10Sensor("pm10", HABaseDeviceType::PrecisionP0);
-HASensorNumber PM2_5Sensor("pm25", HABaseDeviceType::PrecisionP0);
-HASensorNumber PM0_1Sensor("pm01", HABaseDeviceType::PrecisionP0);
+HASensorNumber PM25Sensor("pm25", HABaseDeviceType::PrecisionP0);
+HASensorNumber PM01Sensor("pm01", HABaseDeviceType::PrecisionP0);
 HASensorNumber BatterySensor("battery", HABaseDeviceType::PrecisionP2);
+
+MQTTDevice DeviceWeather(mqtt2, "Weather", "weather");
+MQTTSensor SensorTemperature(DeviceWeather, "Temperature", "temperature");
+MQTTSensor SensorHumidity(DeviceWeather, "Humidity", "humidity");
+MQTTSensor SensorPressure(DeviceWeather, "Pressure", "pressure");
+MQTTSensor SensorCO2(DeviceWeather, "CO2", "co2");
+MQTTSensor SensorPM10(DeviceWeather, "PM10", "pm10");
+MQTTSensor SensorPM25(DeviceWeather, "PM2.5", "pm25");
+MQTTSensor SensorPM01(DeviceWeather, "PM0.1", "pm01");
+MQTTSensor SensorBattery(DeviceWeather, "Battery", "battery");
 
 const unsigned short IngestPort = 7777;
 const unsigned short ServerPort = 7788;
@@ -43,6 +60,12 @@ PMData m_PMData;
 BatteryData m_BatteryData;
 Timezone myTZ;
 
+void messageReceived(String &topic, String &payload);
+extern int ErrorLine;
+int ErrorLine = 0;
+extern int BuffSize;
+extern int OutLen;
+
 void setup()
 {
   Serial.begin(115200);
@@ -51,16 +74,16 @@ void setup()
   TemperatureSensor.setDeviceClass("temperature");
   HumiditySensor.setUnitOfMeasurement("%");
   HumiditySensor.setDeviceClass("humidity");
-  PressureSensor.setUnitOfMeasurement("kPa");
+  PressureSensor.setUnitOfMeasurement("Pa");
   PressureSensor.setDeviceClass("pressure");
   CO2Sensor.setUnitOfMeasurement("ppm");
   CO2Sensor.setDeviceClass("carbon_dioxide");
-  PM10Sensor.setUnitOfMeasurement("ug/m3");
+  PM10Sensor.setUnitOfMeasurement("µg/m³");
   PM10Sensor.setDeviceClass("pm10");
-  PM2_5Sensor.setUnitOfMeasurement("ug/m3");
-  PM2_5Sensor.setDeviceClass("pm25");
-  PM0_1Sensor.setUnitOfMeasurement("ug/m3");
-  PM0_1Sensor.setDeviceClass("pm1");
+  PM25Sensor.setUnitOfMeasurement("µg/m³");
+  PM25Sensor.setDeviceClass("pm25");
+  PM01Sensor.setUnitOfMeasurement("µg/m³");
+  PM01Sensor.setDeviceClass("pm1");
   BatterySensor.setUnitOfMeasurement("V");
   BatterySensor.setDeviceClass("voltage");
 
@@ -86,6 +109,25 @@ void setup()
   bool result = mqtt.begin(BROKER_ADDR, MQTT_USER, MQTT_PASSWORD);
   Serial.printf("mqtt begin said: %d\n", result ? 1 : 0);
 
+  //mqtt2.begin("homeassistant.local", wifi2);
+  mqtt2.begin(BROKER_ADDR, wifi2);
+  if (!mqtt2.connect("testtest", MQTT_USER, MQTT_PASSWORD))
+  {
+    Serial.println("Failed to connect to mqtt");
+  }
+  else
+  {
+    Serial.println("Connected to mqtt!! yay!!!");
+    mqtt2.onMessage(messageReceived);
+    SensorTemperature.Init("temperature", "°F");
+    SensorHumidity.Init("humidity", "%");
+    SensorPressure.Init("pressure", "Pa");
+    SensorCO2.Init("carbon_dioxide", "ppm");
+    SensorPM10.Init("pm10", "µg/m³");
+    SensorPM25.Init("pm25", "µg/m³");
+    SensorPM01.Init("pm1", "µg/m³");
+    SensorBattery.Init("voltage", "V");
+  }
 
   waitForSync();
   myTZ.setLocation("America/New_York");
@@ -93,6 +135,16 @@ void setup()
 
   m_IngestSocket.begin(IngestPort);
   m_ServerSocket.begin(ServerPort);
+}
+
+void messageReceived(String &topic, String &payload)
+{
+  Serial.println("incoming: " + topic + " - " + payload);
+
+  // Note: Do not use the client in the callback to publish, subscribe or
+  // unsubscribe as it may cause deadlocks when other things arrive while
+  // sending and receiving acknowledgments. Instead, change a global variable,
+  // or push to a queue and handle it in the loop after calling `client.loop()`.
 }
 
 void IngestWeatherData(WiFiClient& client)
@@ -126,7 +178,10 @@ void IngestWeatherData(WiFiClient& client)
     m_WeatherHeader.m_DataIncluded |= WEATHER_TEMP_BIT;
     TemperatureSensor.setValue((float)tempF);
     HumiditySensor.setValue(m_TemperatureData.m_Humidity / 10.0f);
-    PressureSensor.setValue(m_TemperatureData.m_Pressure / 100000.0f);
+    PressureSensor.setValue(m_TemperatureData.m_Pressure / 100.0f);
+    SensorTemperature.PublishValue(String(tempF, 1));
+    SensorHumidity.PublishValue(String(m_TemperatureData.m_Humidity / 10.0f, 1));
+    SensorPressure.PublishValue(String(m_TemperatureData.m_Pressure / 100.0f, 2));
   }
 
   if ((header.m_DataIncluded & WEATHER_CO2_BIT) != 0)
@@ -148,6 +203,7 @@ void IngestWeatherData(WiFiClient& client)
     }
     m_WeatherHeader.m_DataIncluded |= WEATHER_CO2_BIT;
     CO2Sensor.setValue(m_CO2Data.m_PPM);
+    SensorCO2.PublishValue(String((int)m_CO2Data.m_PPM));
   }
 
   if ((header.m_DataIncluded & WEATHER_PM_BIT) != 0)
@@ -169,8 +225,11 @@ void IngestWeatherData(WiFiClient& client)
     }
     m_WeatherHeader.m_DataIncluded |= WEATHER_PM_BIT;
     PM10Sensor.setValue(m_PMData.m_10);
-    PM2_5Sensor.setValue(m_PMData.m_2_5);
-    PM0_1Sensor.setValue(m_PMData.m_0_1);
+    PM25Sensor.setValue(m_PMData.m_2_5);
+    PM01Sensor.setValue(m_PMData.m_0_1);
+    SensorPM10.PublishValue(String(m_PMData.m_10));
+    SensorPM25.PublishValue(String(m_PMData.m_2_5));
+    SensorPM01.PublishValue(String(m_PMData.m_0_1));
   }
 
   if ((header.m_DataIncluded & WEATHER_BATT_BIT) != 0)
@@ -183,7 +242,7 @@ void IngestWeatherData(WiFiClient& client)
       return;
     }
     m_BatteryData = data;
-    float volts = m_BatteryData.m_Voltage / 100.0;
+    double volts = m_BatteryData.m_Voltage / 100.0;
     DebugPrintf("Got battery stuff: %.2f Volts\n", volts);
     File file = SD.open("/log.txt", FILE_APPEND);
     if (file)
@@ -193,7 +252,8 @@ void IngestWeatherData(WiFiClient& client)
     }
 
     m_WeatherHeader.m_DataIncluded |= WEATHER_BATT_BIT;
-    BatterySensor.setValue(volts);
+    BatterySensor.setValue((float)volts);
+    SensorBattery.PublishValue(String(volts, 2));
   }
 }
 
@@ -295,6 +355,7 @@ void DoServer(WiFiClient& client)
 void loop()
 {
   mqtt.loop();
+  mqtt2.loop();
   events(); //ezTime events()
   if (m_IngestSocket.hasClient())
   {
