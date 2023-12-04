@@ -31,5 +31,10 @@ bool MQTTSensor::Init(String devClass, String units)
 bool MQTTSensor::PublishValue(String value)
 {
     Serial.printf("NEW VALUE: %s = %s\n", m_ValueTopic.c_str(), value.c_str());
-    return m_Device.GetClient().publish(m_ValueTopic, value, 1, 0);
+    bool ret = m_Device.GetClient().publish(m_ValueTopic, value, 1, 0);
+    if (!ret)
+    {
+        Serial.printf("Failed to publish: %d\n", m_Device.GetClient().lastError());
+    }
+    return ret;
 }
