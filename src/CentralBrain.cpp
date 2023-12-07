@@ -29,7 +29,7 @@ MQTTDevice DeviceWeather(mqtt, "Weather", "weather");
 MQTTSensor SensorTemperature(DeviceWeather, "Temperature", "temperature");
 MQTTSensor SensorHumidity(DeviceWeather, "Humidity", "humidity");
 MQTTSensor SensorPressure(DeviceWeather, "Pressure", "pressure");
-MQTTSensor SensorCO2(DeviceWeather, "CO2", "co2");
+//MQTTSensor SensorCO2(DeviceWeather, "CO2", "co2");
 MQTTSensor SensorPM10(DeviceWeather, "PM10", "pm10");
 MQTTSensor SensorPM25(DeviceWeather, "PM2.5", "pm25");
 MQTTSensor SensorPM01(DeviceWeather, "PM0.1", "pm01");
@@ -53,6 +53,11 @@ int ErrorLine = 0;
 extern int BuffSize;
 extern int OutLen;
 
+bool ConnectToMQTT()
+{
+  return mqtt.connect("Weather", MQTT_USER, MQTT_PASSWORD);
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -72,7 +77,7 @@ void setup()
   
   //mqtt2.begin("homeassistant.local", wifi2);
   mqtt.begin(BROKER_ADDR, mqttClient);
-  if (!mqtt.connect("CentralBrain", MQTT_USER, MQTT_PASSWORD))
+  if (!ConnectToMQTT())
   {
     Serial.println("Failed to connect to mqtt");
   }
@@ -83,7 +88,7 @@ void setup()
     SensorTemperature.Init("temperature", "°F");
     SensorHumidity.Init("humidity", "%");
     SensorPressure.Init("pressure", "Pa");
-    SensorCO2.Init("carbon_dioxide", "ppm");
+    //SensorCO2.Init("carbon_dioxide", "ppm");
     SensorPM10.Init("pm10", "µg/m³");
     SensorPM25.Init("pm25", "µg/m³");
     SensorPM01.Init("pm1", "µg/m³");
@@ -160,7 +165,7 @@ void IngestWeatherData(WiFiClient& client)
       file.close();
     }
     m_WeatherHeader.m_DataIncluded |= WEATHER_CO2_BIT;
-    SensorCO2.PublishValue(String((int)m_CO2Data.m_PPM));
+    //SensorCO2.PublishValue(String((int)m_CO2Data.m_PPM));
   }
 
   if ((header.m_DataIncluded & WEATHER_PM_BIT) != 0)
@@ -218,10 +223,18 @@ void DoIngest(WiFiClient& client)
   int numBytes = client.readBytes(&ingestType, 1);
   if (numBytes != 1)
   {
-    DebugPrint("No bytes?!?\n");
+    DebugPrintf("No bytes?!? %d\n", numBytes);
     return;
   }
 
+  if (!mqtt.connected())
+  {
+    DebugPrintf("How did my mqtt disconnect? maybe %d\n", mqtt.lastError());
+    if (!ConnectToMQTT())
+    {
+      DebugPrintf("STILL not connected to mqtt: %d\n", mqtt.lastError());
+    }
+  }
   switch (ingestType)
   {
     case DATA_TYPE_WEATHER:
@@ -292,7 +305,7 @@ void DoServer(WiFiClient& client)
   int numBytes = client.readBytes(&dataType, 1);
   if (numBytes != 1)
   {
-    DebugPrint("No bytes?!?\n");
+    DebugPrintf("No bytes?!? %d\n", numBytes);
     return;
   }
   DebugPrintf("Request type = %hhu\n", dataType);

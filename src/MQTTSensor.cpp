@@ -23,8 +23,8 @@ bool MQTTSensor::Init(String devClass, String units)
     String output;
     serializeJson(doc, output);
     String topic = "homeassistant/sensor/" + m_Device.GetID() + "/" + m_Device.GetID() + "_" + m_ID + "/config";
-    Serial.println("TOPIC: " + topic);
-    Serial.println("VALUE: " + output);
+    //Serial.println("TOPIC: " + topic);
+    //Serial.println("VALUE: " + output);
     return m_Device.GetClient().publish(topic, output, 1, 0);
 }
 

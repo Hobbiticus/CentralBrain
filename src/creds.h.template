@@ -1,2 +1,4 @@
 #define MY_SSID ""
 #define MY_WIFI_PASSWORD ""
+#define MQTT_USER ""
+#define MQTT_PASSWORD ""
