@@ -11,9 +11,25 @@
 #include "SPI.h"
 #include <MQTT.h>
 #include <ArduinoJson.h>
+#include "MyMQTT.h"
 #include "MQTTDevice.h"
 #include "MQTTSensor.h"
 
+#include <stdarg.h>
+void LogToSD(const char* fmt, ...)
+{
+    File file = SD.open("/log.txt", FILE_APPEND);
+    if (file)
+    {
+      va_list vaList;
+      char outBuff[256] = {0};
+      va_start(vaList, fmt);
+      vsnprintf(outBuff, sizeof(outBuff), fmt, vaList);
+      va_end(vaList);
+      file.printf(outBuff);
+      file.close();
+    }
+}
 
 IPAddress local_IP(192, 168, 1, 222);
 IPAddress gateway(192, 168, 1, 1);
@@ -23,7 +39,8 @@ IPAddress secondaryDNS(8, 8, 4, 4);
 #define BROKER_ADDR IPAddress(192,168,1,98)
 
 WiFiClient mqttClient;
-MQTTClient mqtt(256);
+//MQTTClient mqtt(256);
+MyMQTT mqtt(256);
 
 MQTTDevice DeviceWeather(mqtt, "Weather", "weather");
 MQTTSensor SensorTemperature(DeviceWeather, "Temperature", "temperature");
@@ -106,6 +123,7 @@ void setup()
 void messageReceived(String &topic, String &payload)
 {
   Serial.println("incoming: " + topic + " - " + payload);
+  LogToSD("incoming: %s = %s\n", topic.c_str(), payload.c_str());
 
   // Note: Do not use the client in the callback to publish, subscribe or
   // unsubscribe as it may cause deadlocks when other things arrive while
