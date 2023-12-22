@@ -161,8 +161,10 @@ void IngestWeatherData(WiFiClient& client)
     }
     m_WeatherHeader.m_DataIncluded |= WEATHER_TEMP_BIT;
     SensorTemperature.PublishValue(String(tempF, 1));
-    SensorHumidity.PublishValue(String(m_TemperatureData.m_Humidity / 10.0f, 1));
-    SensorPressure.PublishValue(String(m_TemperatureData.m_Pressure / 100.0f, 2));
+    if (m_TemperatureData.m_Humidity != 0xFFFF)  //sometimes this happens, not sure why
+      SensorHumidity.PublishValue(String(m_TemperatureData.m_Humidity / 10.0f, 1));
+    if (m_TemperatureData.m_Pressure != 0)
+      SensorPressure.PublishValue(String(m_TemperatureData.m_Pressure / 100.0f, 2));
   }
 
   if ((header.m_DataIncluded & WEATHER_CO2_BIT) != 0)
