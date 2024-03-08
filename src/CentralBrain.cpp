@@ -7,7 +7,9 @@
 #include "../include/IngestProtocol.h"
 #include "../include/WeatherProtocol.h"
 #include "FS.h"
+#ifdef ENABLE_SD
 #include "SD.h"
+#endif
 #include "SPI.h"
 #include <MQTT.h>
 #include <ArduinoJson.h>
@@ -18,6 +20,7 @@
 #include <stdarg.h>
 void LogToSD(const char* fmt, ...)
 {
+#ifdef ENABLE_SD
     File file = SD.open("/log.txt", FILE_APPEND);
     if (file)
     {
@@ -29,6 +32,7 @@ void LogToSD(const char* fmt, ...)
       file.printf(outBuff);
       file.close();
     }
+#endif
 }
 
 IPAddress local_IP(192, 168, 1, 222);
@@ -78,7 +82,9 @@ bool ConnectToMQTT()
 void setup()
 {
   Serial.begin(115200);
+#ifdef ENABLE_SD
   Serial.printf("sd begin = %hhu\n", SD.begin(5));
+#endif
 
   m_WeatherHeader.m_DataIncluded = 0; //we have no data!!
 
@@ -153,12 +159,7 @@ void IngestWeatherData(WiFiClient& client)
     m_TemperatureData = data;
     double tempF = m_TemperatureData.m_Temperature / 100.0 * 9 / 5 + 32;
     DebugPrintf("Got temperature stuff: %.1f F, %.1f%%, %.2f\n", tempF, m_TemperatureData.m_Humidity / 10.0, m_TemperatureData.m_Pressure / 100.0);
-    File file = SD.open("/log.txt", FILE_APPEND);
-    if (file)
-    {
-      file.printf("%s: Weather: %.1f F, %.1f%%, %.2f\n", myTZ.dateTime().c_str(), tempF, m_TemperatureData.m_Humidity / 10.0, m_TemperatureData.m_Pressure / 100.0);
-      file.close();
-    }
+    LogToSD("%s: Weather: %.1f F, %.1f%%, %.2f\n", myTZ.dateTime().c_str(), tempF, m_TemperatureData.m_Humidity / 10.0, m_TemperatureData.m_Pressure / 100.0);
     m_WeatherHeader.m_DataIncluded |= WEATHER_TEMP_BIT;
     SensorTemperature.PublishValue(String(tempF, 1));
     if (m_TemperatureData.m_Humidity != 0xFFFF)  //sometimes this happens, not sure why
@@ -178,12 +179,7 @@ void IngestWeatherData(WiFiClient& client)
     }
     m_CO2Data = data;
     DebugPrintf("Got CO2 stuff: %hu ppm\n", m_CO2Data.m_PPM);
-    File file = SD.open("/log.txt", FILE_APPEND);
-    if (file)
-    {
-      file.printf("%s: CO2: %hu ppm\n", myTZ.dateTime().c_str(), m_CO2Data.m_PPM);
-      file.close();
-    }
+    LogToSD("%s: CO2: %hu ppm\n", myTZ.dateTime().c_str(), m_CO2Data.m_PPM);
     m_WeatherHeader.m_DataIncluded |= WEATHER_CO2_BIT;
     //SensorCO2.PublishValue(String((int)m_CO2Data.m_PPM));
   }
@@ -199,12 +195,7 @@ void IngestWeatherData(WiFiClient& client)
     }
     m_PMData = data;
     DebugPrintf("Got PM stuff: pm10: %hhu, pm2.5: %hhu, pm0.1: %hhu\n", m_PMData.m_10, m_PMData.m_2_5, m_PMData.m_0_1);
-    File file = SD.open("/log.txt", FILE_APPEND);
-    if (file)
-    {
-      file.printf("%s: PM: pm10: %hhu, pm2.5: %hhu, pm0.1: %hhu\n", myTZ.dateTime().c_str(), m_PMData.m_10, m_PMData.m_2_5, m_PMData.m_0_1);
-      file.close();
-    }
+    LogToSD("%s: PM: pm10: %hhu, pm2.5: %hhu, pm0.1: %hhu\n", myTZ.dateTime().c_str(), m_PMData.m_10, m_PMData.m_2_5, m_PMData.m_0_1);
     m_WeatherHeader.m_DataIncluded |= WEATHER_PM_BIT;
     SensorPM10.PublishValue(String(m_PMData.m_10));
     SensorPM25.PublishValue(String(m_PMData.m_2_5));
@@ -223,12 +214,7 @@ void IngestWeatherData(WiFiClient& client)
     m_BatteryData = data;
     double volts = m_BatteryData.m_Voltage / 100.0;
     DebugPrintf("Got battery stuff: %.2f Volts\n", volts);
-    File file = SD.open("/log.txt", FILE_APPEND);
-    if (file)
-    {
-      file.printf("%s: Battery: %.2f Volts\n", myTZ.dateTime().c_str(), volts);
-      file.close();
-    }
+    LogToSD("%s: Battery: %.2f Volts\n", myTZ.dateTime().c_str(), volts);
 
     m_WeatherHeader.m_DataIncluded |= WEATHER_BATT_BIT;
     SensorBattery.PublishValue(String(volts, 2));
