@@ -49,6 +49,7 @@ MyMQTT mqtt(256);
 MQTTDevice DeviceWeather(mqtt, "Weather", "weather");
 MQTTSensor SensorTemperature(DeviceWeather, "Temperature", "temperature");
 MQTTSensor SensorHumidity(DeviceWeather, "Humidity", "humidity");
+MQTTSensor SensorDewpoint(DeviceWeather, "Dewpoint", "dewpoint");
 MQTTSensor SensorPressure(DeviceWeather, "Pressure", "pressure");
 //MQTTSensor SensorCO2(DeviceWeather, "CO2", "co2");
 MQTTSensor SensorPM10(DeviceWeather, "PM10", "pm10");
@@ -110,6 +111,7 @@ void setup()
     mqtt.onMessage(messageReceived);
     SensorTemperature.Init("temperature", "°F");
     SensorHumidity.Init("humidity", "%");
+    SensorDewpoint.Init("dewpoint", "°F");
     SensorPressure.Init("pressure", "Pa");
     //SensorCO2.Init("carbon_dioxide", "ppm");
     SensorPM10.Init("pm10", "µg/m³");
@@ -135,6 +137,21 @@ void messageReceived(String &topic, String &payload)
   // unsubscribe as it may cause deadlocks when other things arrive while
   // sending and receiving acknowledgments. Instead, change a global variable,
   // or push to a queue and handle it in the loop after calling `client.loop()`.
+}
+
+//found this calculation on wikipedia
+static const double b = 17.625;
+static const double c = 243.04; // degrees C
+
+double ytrh(double T, double RH)
+{
+  return log(RH / 100.0) + (b * T) / (c + T);
+}
+
+//T in celcius, RH in % (of 100)
+double calcDewpoint(double T, double RH)
+{
+  return c * ytrh(T, RH) / (b - ytrh(T, RH));
 }
 
 void IngestWeatherData(WiFiClient& client)
@@ -163,7 +180,12 @@ void IngestWeatherData(WiFiClient& client)
     m_WeatherHeader.m_DataIncluded |= WEATHER_TEMP_BIT;
     SensorTemperature.PublishValue(String(tempF, 1));
     if (m_TemperatureData.m_Humidity != 0xFFFF)  //sometimes this happens, not sure why
+    {
       SensorHumidity.PublishValue(String(m_TemperatureData.m_Humidity / 10.0f, 1));
+      double dewpointC = calcDewpoint(m_TemperatureData.m_Temperature / 100.0, m_TemperatureData.m_Humidity / 10.0);
+      double dewpointF = dewpointC * 9 / 5 + 32;
+      SensorDewpoint.PublishValue(String(dewpointF, 1));
+    }
     if (m_TemperatureData.m_Pressure != 0)
       SensorPressure.PublishValue(String(m_TemperatureData.m_Pressure / 100.0f, 2));
   }
