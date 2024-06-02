@@ -111,7 +111,7 @@ void setup()
     mqtt.onMessage(messageReceived);
     SensorTemperature.Init("temperature", "°F");
     SensorHumidity.Init("humidity", "%");
-    SensorDewpoint.Init("dewpoint", "°F");
+    SensorDewpoint.Init("temperature", "°F");
     SensorPressure.Init("pressure", "Pa");
     //SensorCO2.Init("carbon_dioxide", "ppm");
     SensorPM10.Init("pm10", "µg/m³");
@@ -184,6 +184,7 @@ void IngestWeatherData(WiFiClient& client)
       SensorHumidity.PublishValue(String(m_TemperatureData.m_Humidity / 10.0f, 1));
       double dewpointC = calcDewpoint(m_TemperatureData.m_Temperature / 100.0, m_TemperatureData.m_Humidity / 10.0);
       double dewpointF = dewpointC * 9 / 5 + 32;
+      DebugPrintf("Dewpoint: %.1f F\n", dewpointF);
       SensorDewpoint.PublishValue(String(dewpointF, 1));
     }
     if (m_TemperatureData.m_Pressure != 0)
