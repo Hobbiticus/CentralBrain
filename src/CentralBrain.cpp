@@ -98,6 +98,7 @@ void setup()
     Serial.println("Waiting for wifi to connect...");
   }
   Serial.println("Connected to WiFi!");
+  digitalWrite(2, HIGH);
   
   //mqtt2.begin("homeassistant.local", wifi2);
   mqtt.begin(BROKER_ADDR, mqttClient);
@@ -349,6 +350,21 @@ void DoServer(WiFiClient& client)
 
 void loop()
 {
+  //if we lost our connection to WiFi, then let's try to reconnect to it
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    digitalWrite(2, LOW);
+    Serial.printf("Hmm, we're not connected - let's try connecting\n");
+    WiFi.begin(MY_SSID, MY_WIFI_PASSWORD);
+    while (WiFi.status() != WL_CONNECTED)
+    {
+      delay(100);
+      Serial.println("Waiting for wifi to connect...");
+    }
+    Serial.println("Connected to WiFi!");
+    digitalWrite(2, HIGH);
+  }
+
   mqtt.loop();
   events(); //ezTime events()
   if (m_IngestSocket.hasClient())
