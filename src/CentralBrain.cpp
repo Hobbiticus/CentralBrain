@@ -238,10 +238,69 @@ void IngestWeatherData(WiFiClient& client)
     m_BatteryData = data;
     double volts = m_BatteryData.m_Voltage / 100.0;
     DebugPrintf("Got battery stuff: %.2f Volts\n", volts);
-    LogToSD("%s: Battery: %.2f Volts\n", myTZ.dateTime().c_str(), volts);
+    LogToSD("%s: Battery: %.2f Volts, Milliamps: %d\n", myTZ.dateTime().c_str(), volts, m_BatteryData.m_Milliamps);
 
     m_WeatherHeader.m_DataIncluded |= WEATHER_BATT_BIT;
     SensorBattery.PublishValue(String(volts, 2));
+  }
+
+  if ((header.m_DataIncluded & WEATHER_TEMP_ONLY_BIT) != 0)
+  {
+    TempData data;
+    int numBytes = client.readBytes((char*)&data, sizeof(data));
+    if (numBytes != sizeof(data))
+    {
+      DebugPrintf("Not enough bytes for temp data, got %d, expecting %d\n", numBytes, sizeof(data));
+      return;
+    }
+    m_TemperatureData.m_Temperature = data.m_Temperature;
+    double tempF = m_TemperatureData.m_Temperature / 100.0 * 9 / 5 + 32;
+    DebugPrintf("Got temperature: %.1f F\n", tempF);
+    LogToSD("%s: Temperature: %.1f F\n", myTZ.dateTime().c_str());
+    m_WeatherHeader.m_DataIncluded |= WEATHER_TEMP_ONLY_BIT;
+    SensorTemperature.PublishValue(String(tempF, 1));
+  }
+
+  if ((header.m_DataIncluded & WEATHER_HUMIDITY_BIT) != 0)
+  {
+    HumidityData data;
+    int numBytes = client.readBytes((char*)&data, sizeof(data));
+    if (numBytes != sizeof(data))
+    {
+      DebugPrintf("Not enough bytes for humidity data, got %d, expecting %d\n", numBytes, sizeof(data));
+      return;
+    }
+    m_TemperatureData.m_Humidity = data.m_Humidity;
+    DebugPrintf("Got humidity: %.1f%%\n", m_TemperatureData.m_Humidity / 10.0);
+    LogToSD("%s: Humidity: %.1f%%\n", myTZ.dateTime().c_str(), m_TemperatureData.m_Humidity / 10.0);
+
+    if ((header.m_DataIncluded & WEATHER_TEMP_ONLY_BIT) != 0 && m_TemperatureData.m_Humidity != 0xFFFF)  //sometimes this happens, not sure why
+    {
+      SensorHumidity.PublishValue(String(m_TemperatureData.m_Humidity / 10.0f, 1));
+      double dewpointC = calcDewpoint(m_TemperatureData.m_Temperature / 100.0, m_TemperatureData.m_Humidity / 10.0);
+      double dewpointF = dewpointC * 9 / 5 + 32;
+      DebugPrintf("Dewpoint: %.1f F\n", dewpointF);
+      SensorDewpoint.PublishValue(String(dewpointF, 1));
+    }
+  }
+
+  if ((header.m_DataIncluded & WEATHER_PRESSURE_BIT) != 0)
+  {
+    if (m_TemperatureData.m_Pressure != 0)
+      SensorPressure.PublishValue(String(m_TemperatureData.m_Pressure / 100.0f, 2));
+
+    PressureData data;
+    int numBytes = client.readBytes((char*)&data, sizeof(data));
+    if (numBytes != sizeof(data))
+    {
+      DebugPrintf("Not enough bytes for pressure data, got %d, expecting %d\n", numBytes, sizeof(data));
+      return;
+    }
+    m_TemperatureData.m_Pressure = data.m_Pressure;
+    DebugPrintf("Got pressure: %.2f\n", m_TemperatureData.m_Pressure / 100.0);
+    LogToSD("%s: Pressure: %.2f\n", myTZ.dateTime().c_str(), m_TemperatureData.m_Pressure / 100.0);
+    if (m_TemperatureData.m_Pressure != 0)
+      SensorPressure.PublishValue(String(m_TemperatureData.m_Pressure / 100.0f, 2));
   }
 }
 

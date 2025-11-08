@@ -8,7 +8,7 @@ enum
     WEATHER_PM_BIT = 1 << 2,
     WEATHER_BATT_BIT = 1 << 3,
     WEATHER_TEMP_ONLY_BIT = 1 << 4,
-    WEATHER_HUMID_BIT = 1 << 5,
+    WEATHER_HUMIDITY_BIT = 1 << 5,
     WEATHER_PRESSURE_BIT = 1 << 6,
 };
 
@@ -43,6 +43,22 @@ struct PMData
 struct BatteryData
 {
     unsigned int m_Voltage; //in hundredths of volts
+    int m_Milliamps; //in milliamps
+};
+
+struct TempData
+{
+  short m_Temperature;  // in hundredths of degrees C
+};
+
+struct HumidityData
+{
+  unsigned short m_Humidity;  // in tenths of percent
+};
+
+struct PressureData
+{
+  unsigned int m_Pressure;  // in hundredths of pascals
 };
 
 #pragma pack(pop)
