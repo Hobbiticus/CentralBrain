@@ -7,6 +7,9 @@ enum
     WEATHER_CO2_BIT = 1 << 1,
     WEATHER_PM_BIT = 1 << 2,
     WEATHER_BATT_BIT = 1 << 3,
+    WEATHER_TEMP_ONLY_BIT = 1 << 4,
+    WEATHER_HUMID_BIT = 1 << 5,
+    WEATHER_PRESSURE_BIT = 1 << 6,
 };
 
 #pragma pack(push, 1)
