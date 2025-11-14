@@ -56,6 +56,7 @@ MQTTSensor SensorPM10(DeviceWeather, "PM10", "pm10");
 MQTTSensor SensorPM25(DeviceWeather, "PM2.5", "pm25");
 MQTTSensor SensorPM01(DeviceWeather, "PM0.1", "pm01");
 MQTTSensor SensorBattery(DeviceWeather, "Battery", "battery");
+MQTTSensor SensorCurrent(DeviceWeather, "Current", "current");
 
 const unsigned short IngestPort = 7777;
 const unsigned short ServerPort = 7788;
@@ -116,10 +117,11 @@ void setup()
     SensorDewpoint.Init("temperature", "°F");
     SensorPressure.Init("pressure", "Pa");
     //SensorCO2.Init("carbon_dioxide", "ppm");
-    SensorPM10.Init("pm10", "µg/m³");
-    SensorPM25.Init("pm25", "µg/m³");
-    SensorPM01.Init("pm1", "µg/m³");
+    SensorPM10.Init("pm10", "µg/m³", 60 * 10 * 3);
+    SensorPM25.Init("pm25", "µg/m³", 60 * 10 * 3);
+    SensorPM01.Init("pm1", "µg/m³", 60 * 10 * 3);
     SensorBattery.Init("voltage", "V");
+    SensorCurrent.Init("current", "mA");
   }
 
   waitForSync();
@@ -256,6 +258,7 @@ void IngestWeatherData(WiFiClient& client)
 
     m_WeatherHeader.m_DataIncluded |= WEATHER_BATT_BIT;
     SensorBattery.PublishValue(String(volts, 2));
+    SensorCurrent.PublishValue(String(m_BatteryData.m_Milliamps));
   }
 }
 

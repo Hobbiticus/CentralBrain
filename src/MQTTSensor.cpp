@@ -7,7 +7,7 @@ MQTTSensor::MQTTSensor(MQTTDevice& device, String name, String id)
 {
 }
 
-bool MQTTSensor::Init(String devClass, String units)
+bool MQTTSensor::Init(String devClass, String units, int expireTimeSecs)
 {
     //NOTE: the sensor ID needs to be unique across all sensors, so we are going to silently prepend the device ID to the sensor ID
     StaticJsonDocument<512> doc;
@@ -20,6 +20,8 @@ bool MQTTSensor::Init(String devClass, String units)
     //dev["sw"] = "1.0.1";
     m_ValueTopic = String("mydevs/") + m_Device.GetID() + "/" + m_Device.GetID() + "_" + m_ID + "/stat_t";
     doc["stat_t"] = m_ValueTopic;
+    if (expireTimeSecs > 0)
+        doc["expire_after"] = expireTimeSecs;
     String output;
     serializeJson(doc, output);
     String topic = "homeassistant/sensor/" + m_Device.GetID() + "/" + m_Device.GetID() + "_" + m_ID + "/config";
